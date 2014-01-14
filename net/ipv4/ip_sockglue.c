@@ -751,6 +751,7 @@ static int do_ip_setsockopt(struct sock *sk, int level,
 		if (!val)
 			skb_queue_purge(&sk->sk_error_queue);
 		break;
+#ifdef CONFIG_IP_MULTICAST
 	case IP_MULTICAST_TTL:
 		if (sk->sk_type == SOCK_STREAM)
 			goto e_inval;
@@ -1109,6 +1110,7 @@ mc_msf_out:
 			goto e_inval;
 		inet->mc_all = val;
 		break;
+#endif
 	case IP_ROUTER_ALERT:
 		err = ip_ra_control(sk, val ? 1 : 0, NULL);
 		break;
@@ -1354,6 +1356,7 @@ static int do_ip_getsockopt(struct sock *sk, int level, int optname,
 	case IP_RECVERR:
 		val = inet->recverr;
 		break;
+#ifdef CONFIG_IP_MULTICAST
 	case IP_MULTICAST_TTL:
 		val = inet->mc_ttl;
 		break;
@@ -1416,6 +1419,7 @@ static int do_ip_getsockopt(struct sock *sk, int level, int optname,
 	case IP_MULTICAST_ALL:
 		val = inet->mc_all;
 		break;
+#endif
 	case IP_PKTOPTIONS:
 	{
 		struct msghdr msg;
