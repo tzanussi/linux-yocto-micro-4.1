@@ -380,6 +380,10 @@ config GENEVE
 	  To compile this driver as a module, choose M here: the module
 
 
+config TCP_FASTOPEN
+	bool "Enable TCP fastopen"
+	default y
+
 config INET_AH
 	tristate "IP: AH transformation"
 	select XFRM_ALGO

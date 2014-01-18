@@ -1030,6 +1030,7 @@ static inline int select_size(const struct sock *sk, bool sg)
 	return tmp;
 }
 
+#ifdef CONFIG_TCP_FASTOPEN
 void tcp_free_fastopen_req(struct tcp_sock *tp)
 {
 	if (tp->fastopen_req) {
@@ -1063,6 +1064,7 @@ static int tcp_sendmsg_fastopen(struct sock *sk, struct msghdr *msg,
 	tcp_free_fastopen_req(tp);
 	return err;
 }
+#endif
 
 int tcp_sendmsg(struct sock *sk, struct msghdr *msg, size_t size)
 {
@@ -1076,6 +1078,7 @@ int tcp_sendmsg(struct sock *sk, struct msghdr *msg, size_t size)
 	lock_sock(sk);
 
 	flags = msg->msg_flags;
+#ifdef CONFIG_TCP_FASTOPEN
 	if (flags & MSG_FASTOPEN) {
 		err = tcp_sendmsg_fastopen(sk, msg, &copied_syn, size);
 		if (err == -EINPROGRESS && copied_syn > 0)
@@ -1083,6 +1086,7 @@ int tcp_sendmsg(struct sock *sk, struct msghdr *msg, size_t size)
 		else if (err)
 			goto out_err;
 	}
+#endif
 
 	timeo = sock_sndtimeo(sk, flags & MSG_DONTWAIT);
 
