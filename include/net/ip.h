@@ -456,7 +456,12 @@ static __inline__ void inet_reset_saddr(struct sock *sk)
 
 #endif
 
+#ifdef CONFIG_INET_RAW
 bool ip_call_ra_chain(struct sk_buff *skb);
+#else
+static inline bool ip_call_ra_chain(struct sk_buff *skb)
+{ return false; }
+#endif
 
 /*
  *	Functions provided by ip_fragment.c
