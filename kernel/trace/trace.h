@@ -1332,8 +1332,13 @@ int perf_ftrace_event_register(struct ftrace_event_call *call,
 
 #ifdef CONFIG_FTRACE_SYSCALLS
 void init_ftrace_syscalls(void);
+const char *get_syscall_name(int syscall);
 #else
 static inline void init_ftrace_syscalls(void) { }
+static inline const char *get_syscall_name(int syscall)
+{
+	return NULL;
+}
 #endif
 
 #ifdef CONFIG_EVENT_TRACING
