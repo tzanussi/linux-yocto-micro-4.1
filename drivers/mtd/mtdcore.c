@@ -1268,7 +1268,9 @@ static int __init init_mtd(void)
 	if (ret)
 		goto err_bdi;
 
+#ifdef CONFIG_PROC_FS
 	proc_mtd = proc_create("mtd", 0, NULL, &mtd_proc_ops);
+#endif
 
 	ret = init_mtdchar();
 	if (ret)
@@ -1277,8 +1279,10 @@ static int __init init_mtd(void)
 	return 0;
 
 out_procfs:
+#ifdef CONFIG_PROC_FS
 	if (proc_mtd)
 		remove_proc_entry("mtd", NULL);
+#endif
 err_bdi:
 	class_unregister(&mtd_class);
 err_reg:
