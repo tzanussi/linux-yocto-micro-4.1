@@ -1988,6 +1988,7 @@ ktime_t ktime_get_update_offsets_now(ktime_t *offs_real, ktime_t *offs_boot,
 }
 #endif
 
+#ifdef CONFIG_NTP
 /**
  * do_adjtimex() - Accessor function to NTP __do_adjtimex function
  */
@@ -2037,6 +2038,7 @@ int do_adjtimex(struct timex *txc)
 
 	return ret;
 }
+#endif
 
 #ifdef CONFIG_NTP_PPS
 /**
