@@ -425,6 +425,7 @@ endif # NF_CONNTRACK
 
 config NF_TABLES
 	select NETFILTER_NETLINK
+	select RHASHTABLE
 	tristate "Netfilter nf_tables support"
 	help
 	  nftables is the new packet classification framework that intends to
