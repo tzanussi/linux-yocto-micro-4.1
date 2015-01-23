@@ -835,7 +835,9 @@ static const struct memdev {
 #ifdef CONFIG_DEVRANDOM
 	 [8] = { "random", 0666, &random_fops, 0 },
 #endif
+#ifdef CONFIG_DEVURANDOM
 	 [9] = { "urandom", 0666, &urandom_fops, 0 },
+#endif
 #ifdef CONFIG_PRINTK
 	[11] = { "kmsg", 0644, &kmsg_fops, 0 },
 #endif
