@@ -689,7 +689,8 @@ static loff_t null_lseek(struct file *file, loff_t offset, int orig)
  * also note that seeking relative to the "end of file" isn't supported:
  * it has no meaning, so it returns -EINVAL.
  */
-static loff_t memory_lseek(struct file *file, loff_t offset, int orig)
+static loff_t __maybe_unused memory_lseek(struct file *file, loff_t offset,
+					  int orig)
 {
 	loff_t ret;
 
@@ -714,7 +715,7 @@ static loff_t memory_lseek(struct file *file, loff_t offset, int orig)
 	return ret;
 }
 
-static int open_port(struct inode *inode, struct file *filp)
+static int __maybe_unused open_port(struct inode *inode, struct file *filp)
 {
 	return capable(CAP_SYS_RAWIO) ? 0 : -EPERM;
 }
