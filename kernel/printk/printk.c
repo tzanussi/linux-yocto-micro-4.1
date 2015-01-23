@@ -506,6 +506,7 @@ ok:
 	return security_syslog(type);
 }
 
+#ifdef CONFIG_DEVKMSG
 
 /* /dev/kmsg - userspace message inject/listen interface */
 struct devkmsg_user {
@@ -798,6 +799,7 @@ const struct file_operations kmsg_fops = {
 	.poll = devkmsg_poll,
 	.release = devkmsg_release,
 };
+#endif
 
 #ifdef CONFIG_KEXEC
 /*
