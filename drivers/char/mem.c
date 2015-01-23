@@ -645,7 +645,8 @@ static ssize_t __maybe_unused aio_write_null(struct kiocb *iocb,
 	return iov_length(iov, nr_segs);
 }
 
-static ssize_t read_iter_zero(struct kiocb *iocb, struct iov_iter *iter)
+static ssize_t __maybe_unused read_iter_zero(struct kiocb *iocb,
+					     struct iov_iter *iter)
 {
 	size_t written = 0;
 
@@ -665,6 +666,7 @@ static ssize_t read_iter_zero(struct kiocb *iocb, struct iov_iter *iter)
 	return written;
 }
 
+#ifdef CONFIG_DEVZERO
 static int mmap_zero(struct file *file, struct vm_area_struct *vma)
 {
 #ifndef CONFIG_MMU
@@ -674,6 +676,7 @@ static int mmap_zero(struct file *file, struct vm_area_struct *vma)
 		return shmem_zero_setup(vma);
 	return 0;
 }
+#endif
 
 static ssize_t write_full(struct file *file, const char __user *buf,
 			  size_t count, loff_t *ppos)
@@ -782,6 +785,7 @@ static const struct file_operations __maybe_unused port_fops = {
 	.open		= open_port,
 };
 
+#ifdef CONFIG_DEVZERO
 static const struct file_operations zero_fops = {
 	.llseek		= zero_lseek,
 	.write		= write_zero,
@@ -792,6 +796,7 @@ static const struct file_operations zero_fops = {
 	.mmap_capabilities = zero_mmap_capabilities,
 #endif
 };
+#endif
 
 static const struct file_operations full_fops = {
 	.llseek		= full_lseek,
@@ -817,7 +822,9 @@ static const struct memdev {
 #ifdef CONFIG_DEVPORT
 	 [4] = { "port", 0, &port_fops, 0 },
 #endif
+#ifdef CONFIG_DEVZERO
 	 [5] = { "zero", 0666, &zero_fops, 0 },
+#endif
 	 [7] = { "full", 0666, &full_fops, 0 },
 	 [8] = { "random", 0666, &random_fops, 0 },
 	 [9] = { "urandom", 0666, &urandom_fops, 0 },
