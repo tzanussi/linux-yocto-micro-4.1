@@ -1339,7 +1339,7 @@ void rand_initialize_disk(struct gendisk *disk)
 }
 #endif
 
-static ssize_t
+static ssize_t __maybe_unused
 _random_read(int nonblock, char __user *buf, size_t nbytes)
 {
 	ssize_t n;
@@ -1370,13 +1370,15 @@ _random_read(int nonblock, char __user *buf, size_t nbytes)
 	}
 }
 
+#ifdef CONFIG_DEVRANDOM
 static ssize_t
 random_read(struct file *file, char __user *buf, size_t nbytes, loff_t *ppos)
 {
 	return _random_read(file->f_flags & O_NONBLOCK, buf, nbytes);
 }
+#endif
 
-static ssize_t
+static ssize_t __maybe_unused
 urandom_read(struct file *file, char __user *buf, size_t nbytes, loff_t *ppos)
 {
 	int ret;
@@ -1394,6 +1396,7 @@ urandom_read(struct file *file, char __user *buf, size_t nbytes, loff_t *ppos)
 	return ret;
 }
 
+#ifdef CONFIG_DEVRANDOM
 static unsigned int
 random_poll(struct file *file, poll_table * wait)
 {
@@ -1408,6 +1411,7 @@ random_poll(struct file *file, poll_table * wait)
 		mask |= POLLOUT | POLLWRNORM;
 	return mask;
 }
+#endif
 
 static int
 write_pool(struct entropy_store *r, const char __user *buffer, size_t count)
@@ -1431,8 +1435,9 @@ write_pool(struct entropy_store *r, const char __user *buffer, size_t count)
 	return 0;
 }
 
-static ssize_t random_write(struct file *file, const char __user *buffer,
-			    size_t count, loff_t *ppos)
+static ssize_t __maybe_unused random_write(struct file *file,
+					   const char __user *buffer,
+					   size_t count, loff_t *ppos)
 {
 	size_t ret;
 
@@ -1446,7 +1451,8 @@ static ssize_t random_write(struct file *file, const char __user *buffer,
 	return (ssize_t)count;
 }
 
-static long random_ioctl(struct file *f, unsigned int cmd, unsigned long arg)
+static long __maybe_unused random_ioctl(struct file *f, unsigned int cmd,
+					unsigned long arg)
 {
 	int size, ent_count;
 	int __user *p = (int __user *)arg;
@@ -1498,11 +1504,12 @@ static long random_ioctl(struct file *f, unsigned int cmd, unsigned long arg)
 	}
 }
 
-static int random_fasync(int fd, struct file *filp, int on)
+static int __maybe_unused random_fasync(int fd, struct file *filp, int on)
 {
 	return fasync_helper(fd, filp, on, &fasync);
 }
 
+#ifdef CONFIG_DEVRANDOM
 const struct file_operations random_fops = {
 	.read  = random_read,
 	.write = random_write,
@@ -1511,7 +1518,9 @@ const struct file_operations random_fops = {
 	.fasync = random_fasync,
 	.llseek = noop_llseek,
 };
+#endif
 
+#ifdef CONFIG_DEVURANDOM
 const struct file_operations urandom_fops = {
 	.read  = urandom_read,
 	.write = random_write,
@@ -1519,7 +1528,9 @@ const struct file_operations urandom_fops = {
 	.fasync = random_fasync,
 	.llseek = noop_llseek,
 };
+#endif
 
+#ifdef CONFIG_GETRANDOM_SYSCALL
 SYSCALL_DEFINE3(getrandom, char __user *, buf, size_t, count,
 		unsigned int, flags)
 {
@@ -1542,6 +1553,7 @@ SYSCALL_DEFINE3(getrandom, char __user *, buf, size_t, count,
 	}
 	return urandom_read(NULL, buf, count, NULL);
 }
+#endif
 
 /***************************************************************
  * Random UUID interface
