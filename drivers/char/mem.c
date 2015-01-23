@@ -92,6 +92,7 @@ void __weak unxlate_dev_mem_ptr(phys_addr_t phys, void *addr)
 }
 #endif
 
+#ifdef CONFIG_DEVMEM
 /*
  * This funcion reads the *physical* memory. The f_pos points directly to the
  * memory location.
@@ -220,6 +221,7 @@ static ssize_t write_mem(struct file *file, const char __user *buf,
 	*ppos += written;
 	return written;
 }
+#endif
 
 int __weak phys_mem_access_prot_allowed(struct file *file,
 	unsigned long pfn, unsigned long size, pgprot_t *vma_prot)
@@ -319,7 +321,8 @@ static const struct vm_operations_struct mmap_mem_ops = {
 #endif
 };
 
-static int mmap_mem(struct file *file, struct vm_area_struct *vma)
+static int __maybe_unused mmap_mem(struct file *file,
+				   struct vm_area_struct *vma)
 {
 	size_t size = vma->vm_end - vma->vm_start;
 
@@ -723,6 +726,7 @@ static int open_port(struct inode *inode, struct file *filp)
 #define open_mem	open_port
 #define open_kmem	open_mem
 
+#ifdef CONFIG_DEVMEM
 static const struct file_operations __maybe_unused mem_fops = {
 	.llseek		= memory_lseek,
 	.read		= read_mem,
@@ -734,6 +738,7 @@ static const struct file_operations __maybe_unused mem_fops = {
 	.mmap_capabilities = memory_mmap_capabilities,
 #endif
 };
+#endif
 
 static const struct file_operations __maybe_unused kmem_fops = {
 	.llseek		= memory_lseek,
