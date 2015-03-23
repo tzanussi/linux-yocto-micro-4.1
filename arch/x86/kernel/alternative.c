@@ -21,6 +21,8 @@
 #include <asm/io.h>
 #include <asm/fixmap.h>
 
+#ifndef CONFIG_XIP_KERNEL
+
 #define MAX_PATCH_LEN (255-1)
 
 static int __initdata_or_module debug_alternative;
@@ -707,6 +709,8 @@ static void do_sync_core(void *info)
 	sync_core();
 }
 
+#endif /* !CONFIG_XIP_KERNEL */
+
 static bool bp_patching_in_progress;
 static void *bp_int3_handler, *bp_int3_addr;
 
@@ -727,6 +731,8 @@ int poke_int3_handler(struct pt_regs *regs)
 	return 1;
 
 }
+
+#ifndef CONFIG_XIP_KERNEL
 
 /**
  * text_poke_bp() -- update instructions on live kernel on SMP
@@ -791,4 +797,5 @@ void *text_poke_bp(void *addr, const void *opcode, size_t len, void *handler)
 
 	return addr;
 }
+#endif /* !CONFIG_XIP_KERNEL */
 

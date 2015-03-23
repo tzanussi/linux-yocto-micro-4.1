@@ -779,7 +779,9 @@ out:
 void common_cpu_up(unsigned int cpu, struct task_struct *idle)
 {
 	/* Just in case we booted with a single CPU. */
+#ifndef CONFIG_XIP_KERNEL
 	alternatives_enable_smp();
+#endif
 
 	per_cpu(current_task, cpu) = idle;
 
