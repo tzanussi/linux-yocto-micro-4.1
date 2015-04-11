@@ -821,7 +821,10 @@ static inline int ftrace_trace_task(struct task_struct *task)
 extern int ftrace_is_dead(void);
 int ftrace_create_function_files(struct trace_array *tr,
 				 struct dentry *parent);
+int ftrace_create_function_hist_files(struct trace_array *tr,
+				      struct dentry *parent);
 void ftrace_destroy_function_files(struct trace_array *tr);
+void ftrace_destroy_function_hist_files(struct trace_array *tr);
 void ftrace_init_global_array_ops(struct trace_array *tr);
 void ftrace_init_array_ops(struct trace_array *tr, ftrace_func_t func);
 void ftrace_reset_array_ops(struct trace_array *tr);
@@ -838,7 +841,15 @@ ftrace_create_function_files(struct trace_array *tr,
 {
 	return 0;
 }
+static inline int
+ftrace_create_function_hist_files(struct trace_array *tr,
+				  struct dentry *parent)
+{
+	return 0;
+}
 static inline void ftrace_destroy_function_files(struct trace_array *tr) { }
+static inline void
+ftrace_destroy_function_hist_files(struct trace_array *tr) { }
 static inline __init void
 ftrace_init_global_array_ops(struct trace_array *tr) { }
 static inline void ftrace_reset_array_ops(struct trace_array *tr) { }

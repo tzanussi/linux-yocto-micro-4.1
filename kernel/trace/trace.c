@@ -6721,6 +6721,9 @@ init_tracer_tracefs(struct trace_array *tr, struct dentry *d_tracer)
 	if (ftrace_create_function_files(tr, d_tracer))
 		WARN(1, "Could not allocate function filter files");
 
+	if (ftrace_create_function_hist_files(tr, d_tracer))
+		WARN(1, "Could not allocate function_hist filter files");
+
 #ifdef CONFIG_TRACER_SNAPSHOT
 	trace_create_file("snapshot", 0644, d_tracer,
 			  tr, &snapshot_fops);
