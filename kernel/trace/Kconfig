@@ -528,6 +528,20 @@ config MMIOTRACE
 	  See Documentation/trace/mmiotrace.txt.
 	  If you are not helping to develop drivers, say N.
 
+config HIST_TRIGGERS
+	bool "Histogram triggers"
+	depends on ARCH_HAVE_NMI_SAFE_CMPXCHG
+	help
+	  Hist triggers allow one or more arbitrary trace event fields
+	  to be aggregated into hash tables and dumped to stdout by
+	  reading a debugfs/tracefs file.  They're useful for
+	  gathering quick and dirty (though precise) summaries of
+	  event activity as an initial guide for further investigation
+	  using more advanced tools.
+
+	  See Documentation/trace/events.txt.
+	  If in doubt, say N.
+
 config MMIOTRACE_TEST
 	tristate "Test module for mmiotrace"
 	depends on MMIOTRACE && m
