@@ -35,6 +35,11 @@ struct hist_field {
 	unsigned int			offset;
 };
 
+static u64 hist_field_none(struct hist_field *field, void *event)
+{
+	return 0;
+}
+
 static u64 hist_field_counter(struct hist_field *field, void *event)
 {
 	return 1;
@@ -64,9 +69,13 @@ DEFINE_HIST_FIELD_FN(u16);
 DEFINE_HIST_FIELD_FN(s8);
 DEFINE_HIST_FIELD_FN(u8);
 
+#define HIST_STACKTRACE_DEPTH	16
+#define HIST_STACKTRACE_SIZE	(HIST_STACKTRACE_DEPTH * sizeof(unsigned long))
+#define HIST_STACKTRACE_SKIP	5
+
 #define HITCOUNT_IDX		0
 #define HIST_KEY_MAX		2
-#define HIST_KEY_SIZE_MAX	(MAX_FILTER_STR_VAL + sizeof(u64))
+#define HIST_KEY_SIZE_MAX	(MAX_FILTER_STR_VAL + HIST_STACKTRACE_SIZE)
 
 enum hist_field_flags {
 	HIST_FIELD_HITCOUNT	= 1,
@@ -77,6 +86,7 @@ enum hist_field_flags {
 	HIST_FIELD_SYM_OFFSET	= 32,
 	HIST_FIELD_EXECNAME	= 64,
 	HIST_FIELD_SYSCALL	= 128,
+	HIST_FIELD_STACKTRACE	= 256,
 };
 
 struct hist_trigger_attrs {
@@ -314,6 +324,11 @@ static struct hist_field *create_hist_field(struct ftrace_event_field *field,
 		goto out;
 	}
 
+	if (flags & HIST_FIELD_STACKTRACE) {
+		hist_field->fn = hist_field_none;
+		goto out;
+	}
+
 	if (is_string_field(field)) {
 		flags |= HIST_FIELD_STRING;
 		hist_field->fn = hist_field_string;
@@ -437,37 +452,42 @@ static int create_key_field(struct hist_trigger_data *hist_data,
 	struct ftrace_event_field *field = NULL;
 	unsigned long flags = 0;
 	unsigned int key_size;
-	char *field_name;
 	int ret = 0;
 
 	flags |= HIST_FIELD_KEY;
 
-	field_name = strsep(&field_str, ".");
-	if (field_str) {
-		if (!strcmp(field_str, "hex"))
-			flags |= HIST_FIELD_HEX;
-		else if (!strcmp(field_str, "sym"))
-			flags |= HIST_FIELD_SYM;
-		else if (!strcmp(field_str, "sym-offset"))
-			flags |= HIST_FIELD_SYM_OFFSET;
-		else if (!strcmp(field_str, "execname") &&
-			 !strcmp(field_name, "common_pid"))
-			flags |= HIST_FIELD_EXECNAME;
-		else if (!strcmp(field_str, "syscall"))
-			flags |= HIST_FIELD_SYSCALL;
-		else {
+	if (!strcmp(field_str, "stacktrace")) {
+		flags |= HIST_FIELD_STACKTRACE;
+		key_size = sizeof(unsigned long) * HIST_STACKTRACE_DEPTH;
+	} else {
+		char *field_name = strsep(&field_str, ".");
+
+		if (field_str) {
+			if (!strcmp(field_str, "hex"))
+				flags |= HIST_FIELD_HEX;
+			else if (!strcmp(field_str, "sym"))
+				flags |= HIST_FIELD_SYM;
+			else if (!strcmp(field_str, "sym-offset"))
+				flags |= HIST_FIELD_SYM_OFFSET;
+			else if (!strcmp(field_str, "execname") &&
+				 !strcmp(field_name, "common_pid"))
+				flags |= HIST_FIELD_EXECNAME;
+			else if (!strcmp(field_str, "syscall"))
+				flags |= HIST_FIELD_SYSCALL;
+			else {
+				ret = -EINVAL;
+				goto out;
+			}
+		}
+
+		field = trace_find_event_field(file->event_call, field_name);
+		if (!field) {
 			ret = -EINVAL;
 			goto out;
 		}
-	}
 
-	field = trace_find_event_field(file->event_call, field_name);
-	if (!field) {
-		ret = -EINVAL;
-		goto out;
+		key_size = field->size;
 	}
-
-	key_size = field->size;
 
 	hist_data->fields[key_idx] = create_hist_field(field, flags);
 	if (!hist_data->fields[key_idx]) {
@@ -649,7 +669,9 @@ static int create_tracing_map_fields(struct hist_trigger_data *hist_data)
 
 			field = hist_field->field;
 
-			if (is_string_field(field))
+			if (hist_field->flags & HIST_FIELD_STACKTRACE)
+				cmp_fn = tracing_map_cmp_none;
+			else if (is_string_field(field))
 				cmp_fn = tracing_map_cmp_string;
 			else
 				cmp_fn = tracing_map_cmp_num(field->size,
@@ -737,7 +759,9 @@ static void hist_trigger_elt_update(struct hist_trigger_data *hist_data,
 static void event_hist_trigger(struct event_trigger_data *data, void *rec)
 {
 	struct hist_trigger_data *hist_data = data->private_data;
+	unsigned long entries[HIST_STACKTRACE_DEPTH];
 	char compound_key[HIST_KEY_SIZE_MAX];
+	struct stack_trace stacktrace;
 	struct hist_field *key_field;
 	struct tracing_map_elt *elt;
 	u64 field_contents;
@@ -755,15 +779,27 @@ static void event_hist_trigger(struct event_trigger_data *data, void *rec)
 	for (i = hist_data->n_vals; i < hist_data->n_fields; i++) {
 		key_field = hist_data->fields[i];
 
-		field_contents = key_field->fn(key_field, rec);
-		if (key_field->flags & HIST_FIELD_STRING)
-			key = (void *)field_contents;
-		else
-			key = (void *)&field_contents;
+		if (key_field->flags & HIST_FIELD_STACKTRACE) {
+			stacktrace.max_entries = HIST_STACKTRACE_DEPTH;
+			stacktrace.entries = entries;
+			stacktrace.nr_entries = 0;
+			stacktrace.skip = HIST_STACKTRACE_SKIP;
 
-		if (hist_data->n_keys > 1) {
-			memcpy(compound_key + key_field->offset, key,
-			       key_field->size);
+			memset(stacktrace.entries, 0, HIST_STACKTRACE_SIZE);
+			save_stack_trace(&stacktrace);
+
+			key = entries;
+		} else {
+			field_contents = key_field->fn(key_field, rec);
+			if (key_field->flags & HIST_FIELD_STRING)
+				key = (void *)field_contents;
+			else
+				key = (void *)&field_contents;
+
+			if (hist_data->n_keys > 1) {
+				memcpy(compound_key + key_field->offset, key,
+				       key_field->size);
+			}
 		}
 	}
 
@@ -779,6 +815,24 @@ static void event_hist_trigger(struct event_trigger_data *data, void *rec)
 	atomic64_inc(&hist_data->total_hits);
 }
 
+static void hist_trigger_stacktrace_print(struct seq_file *m,
+					  unsigned long *stacktrace_entries,
+					  unsigned int max_entries)
+{
+	char str[KSYM_SYMBOL_LEN];
+	unsigned int spaces = 8;
+	unsigned int i;
+
+	for (i = 0; i < max_entries; i++) {
+		if (stacktrace_entries[i] == ULONG_MAX)
+			return;
+
+		seq_printf(m, "%*c", 1 + spaces, ' ');
+		sprint_symbol(str, stacktrace_entries[i]);
+		seq_printf(m, "%s\n", str);
+	}
+}
+
 static void
 hist_trigger_entry_print(struct seq_file *m,
 			 struct hist_trigger_data *hist_data, void *key,
@@ -786,6 +840,7 @@ hist_trigger_entry_print(struct seq_file *m,
 {
 	struct hist_field *key_field;
 	char str[KSYM_SYMBOL_LEN];
+	bool multiline = false;
 	unsigned int i;
 	u64 uval;
 
@@ -827,6 +882,12 @@ hist_trigger_entry_print(struct seq_file *m,
 
 			seq_printf(m, "%s: %-30s[%3llu]",
 				   key_field->field->name, syscall_name, uval);
+		} else if (key_field->flags & HIST_FIELD_STACKTRACE) {
+			seq_puts(m, "stacktrace:\n");
+			hist_trigger_stacktrace_print(m,
+						      key + key_field->offset,
+						      HIST_STACKTRACE_DEPTH);
+			multiline = true;
 		} else if (key_field->flags & HIST_FIELD_STRING) {
 			seq_printf(m, "%s: %-35s", key_field->field->name,
 				   (char *)(key + key_field->offset));
@@ -837,7 +898,10 @@ hist_trigger_entry_print(struct seq_file *m,
 		}
 	}
 
-	seq_puts(m, " }");
+	if (!multiline)
+		seq_puts(m, " ");
+
+	seq_puts(m, "}");
 
 	seq_printf(m, " hitcount: %10llu",
 		   tracing_map_read_sum(elt, HITCOUNT_IDX));
@@ -975,7 +1039,10 @@ static int event_hist_trigger_print(struct seq_file *m,
 		if (i > hist_data->n_vals)
 			seq_puts(m, ",");
 
-		hist_field_print(m, key_field);
+		if (key_field->flags & HIST_FIELD_STACKTRACE)
+			seq_puts(m, "stacktrace");
+		else
+			hist_field_print(m, key_field);
 	}
 
 	seq_puts(m, ":vals=");
