@@ -78,6 +78,8 @@ struct hist_trigger_attrs {
 	char		*keys_str;
 	char		*vals_str;
 	char		*sort_key_str;
+	bool		pause;
+	bool		cont;
 	unsigned int	map_bits;
 };
 
@@ -184,6 +186,11 @@ static struct hist_trigger_attrs *parse_hist_trigger_attrs(char *trigger_str)
 			attrs->vals_str = kstrdup(str, GFP_KERNEL);
 		else if (!strncmp(str, "sort", strlen("sort")))
 			attrs->sort_key_str = kstrdup(str, GFP_KERNEL);
+		else if (!strncmp(str, "pause", strlen("pause")))
+			attrs->pause = true;
+		else if (!strncmp(str, "continue", strlen("continue")) ||
+			 !strncmp(str, "cont", strlen("cont")))
+			attrs->cont = true;
 		else if (!strncmp(str, "size", strlen("size"))) {
 			int map_bits = parse_map_size(str);
 
@@ -843,7 +850,10 @@ static int event_hist_trigger_print(struct seq_file *m,
 	if (data->filter_str)
 		seq_printf(m, " if %s", data->filter_str);
 
-	seq_puts(m, " [active]");
+	if (data->paused)
+		seq_puts(m, " [paused]");
+	else
+		seq_puts(m, " [active]");
 
 	seq_putc(m, '\n');
 
@@ -882,15 +892,24 @@ static int hist_register_trigger(char *glob, struct event_trigger_ops *ops,
 				 struct event_trigger_data *data,
 				 struct trace_event_file *file)
 {
+	struct hist_trigger_data *hist_data = data->private_data;
 	struct event_trigger_data *test;
 	int ret = 0;
 
 	list_for_each_entry_rcu(test, &file->triggers, list) {
 		if (test->cmd_ops->trigger_type == ETT_EVENT_HIST) {
-			ret = -EEXIST;
+			if (hist_data->attrs->pause)
+				test->paused = true;
+			else if (hist_data->attrs->cont)
+				test->paused = false;
+			else
+				ret = -EEXIST;
 			goto out;
 		}
 	}
+
+	if (hist_data->attrs->pause)
+		data->paused = true;
 
 	if (data->ops->init) {
 		ret = data->ops->init(data->ops, data);
@@ -984,7 +1003,8 @@ static int event_hist_trigger_func(struct event_command *cmd_ops,
 	 * triggers registered a failure too.
 	 */
 	if (!ret) {
-		ret = -ENOENT;
+		if (!(attrs->pause || attrs->cont))
+			ret = -ENOENT;
 		goto out_free;
 	} else if (ret < 0)
 		goto out_free;
