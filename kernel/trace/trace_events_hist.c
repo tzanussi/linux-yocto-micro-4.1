@@ -80,6 +80,7 @@ struct hist_trigger_attrs {
 	char		*sort_key_str;
 	bool		pause;
 	bool		cont;
+	bool		clear;
 	unsigned int	map_bits;
 };
 
@@ -188,6 +189,8 @@ static struct hist_trigger_attrs *parse_hist_trigger_attrs(char *trigger_str)
 			attrs->sort_key_str = kstrdup(str, GFP_KERNEL);
 		else if (!strncmp(str, "pause", strlen("pause")))
 			attrs->pause = true;
+		else if (!strncmp(str, "clear", strlen("clear")))
+			attrs->clear = true;
 		else if (!strncmp(str, "continue", strlen("continue")) ||
 			 !strncmp(str, "cont", strlen("cont")))
 			attrs->cont = true;
@@ -888,6 +891,24 @@ static struct event_trigger_ops *event_hist_get_trigger_ops(char *cmd,
 	return &event_hist_trigger_ops;
 }
 
+static void hist_clear(struct event_trigger_data *data)
+{
+	struct hist_trigger_data *hist_data = data->private_data;
+	bool paused;
+
+	paused = data->paused;
+	data->paused = true;
+
+	synchronize_sched();
+
+	tracing_map_clear(hist_data->map);
+
+	atomic64_set(&hist_data->total_hits, 0);
+	atomic64_set(&hist_data->drops, 0);
+
+	data->paused = paused;
+}
+
 static int hist_register_trigger(char *glob, struct event_trigger_ops *ops,
 				 struct event_trigger_data *data,
 				 struct trace_event_file *file)
@@ -902,6 +923,8 @@ static int hist_register_trigger(char *glob, struct event_trigger_ops *ops,
 				test->paused = true;
 			else if (hist_data->attrs->cont)
 				test->paused = false;
+			else if (hist_data->attrs->clear)
+				hist_clear(test);
 			else
 				ret = -EEXIST;
 			goto out;
@@ -1003,7 +1026,7 @@ static int event_hist_trigger_func(struct event_command *cmd_ops,
 	 * triggers registered a failure too.
 	 */
 	if (!ret) {
-		if (!(attrs->pause || attrs->cont))
+		if (!(attrs->pause || attrs->cont || attrs->clear))
 			ret = -ENOENT;
 		goto out_free;
 	} else if (ret < 0)
