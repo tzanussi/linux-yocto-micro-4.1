@@ -73,6 +73,8 @@ enum hist_field_flags {
 	HIST_FIELD_KEY		= 2,
 	HIST_FIELD_STRING	= 4,
 	HIST_FIELD_HEX		= 8,
+	HIST_FIELD_SYM		= 16,
+	HIST_FIELD_SYM_OFFSET	= 32,
 };
 
 struct hist_trigger_attrs {
@@ -370,6 +372,10 @@ static int create_key_field(struct hist_trigger_data *hist_data,
 	if (field_str) {
 		if (!strcmp(field_str, "hex"))
 			flags |= HIST_FIELD_HEX;
+		else if (!strcmp(field_str, "sym"))
+			flags |= HIST_FIELD_SYM;
+		else if (!strcmp(field_str, "sym-offset"))
+			flags |= HIST_FIELD_SYM_OFFSET;
 		else {
 			ret = -EINVAL;
 			goto out;
@@ -700,6 +706,7 @@ hist_trigger_entry_print(struct seq_file *m,
 			 struct tracing_map_elt *elt)
 {
 	struct hist_field *key_field;
+	char str[KSYM_SYMBOL_LEN];
 	unsigned int i;
 	u64 uval;
 
@@ -715,6 +722,16 @@ hist_trigger_entry_print(struct seq_file *m,
 			uval = *(u64 *)(key + key_field->offset);
 			seq_printf(m, "%s: %llx",
 				   key_field->field->name, uval);
+		} else if (key_field->flags & HIST_FIELD_SYM) {
+			uval = *(u64 *)(key + key_field->offset);
+			sprint_symbol_no_offset(str, uval);
+			seq_printf(m, "%s: [%llx] %-45s",
+				   key_field->field->name, uval, str);
+		} else if (key_field->flags & HIST_FIELD_SYM_OFFSET) {
+			uval = *(u64 *)(key + key_field->offset);
+			sprint_symbol(str, uval);
+			seq_printf(m, "%s: [%llx] %-55s",
+				   key_field->field->name, uval, str);
 		} else if (key_field->flags & HIST_FIELD_STRING) {
 			seq_printf(m, "%s: %-35s", key_field->field->name,
 				   (char *)(key + key_field->offset));
@@ -824,6 +841,10 @@ static const char *get_hist_field_flags(struct hist_field *hist_field)
 
 	if (hist_field->flags & HIST_FIELD_HEX)
 		flags_str = "hex";
+	else if (hist_field->flags & HIST_FIELD_SYM)
+		flags_str = "sym";
+	else if (hist_field->flags & HIST_FIELD_SYM_OFFSET)
+		flags_str = "sym-offset";
 
 	return flags_str;
 }
