@@ -75,6 +75,7 @@ enum hist_field_flags {
 	HIST_FIELD_HEX		= 8,
 	HIST_FIELD_SYM		= 16,
 	HIST_FIELD_SYM_OFFSET	= 32,
+	HIST_FIELD_EXECNAME	= 64,
 };
 
 struct hist_trigger_attrs {
@@ -217,6 +218,78 @@ static struct hist_trigger_attrs *parse_hist_trigger_attrs(char *trigger_str)
 
 	return ERR_PTR(ret);
 }
+
+static inline void save_comm(char *comm, struct task_struct *task)
+{
+	if (!task->pid) {
+		strcpy(comm, "<idle>");
+		return;
+	}
+
+	if (WARN_ON_ONCE(task->pid < 0)) {
+		strcpy(comm, "<XXX>");
+		return;
+	}
+
+	if (task->pid > PID_MAX_DEFAULT) {
+		strcpy(comm, "<...>");
+		return;
+	}
+
+	memcpy(comm, task->comm, TASK_COMM_LEN);
+}
+
+static void hist_trigger_elt_free(struct tracing_map_elt *elt)
+{
+	kfree((char *)elt->private_data);
+}
+
+static int hist_trigger_elt_alloc(struct tracing_map_elt *elt)
+{
+	struct hist_trigger_data *hist_data = elt->map->private_data;
+	struct hist_field *key_field;
+	unsigned int i;
+
+	for (i = hist_data->n_vals; i < hist_data->n_fields; i++) {
+		key_field = hist_data->fields[i];
+
+		if (key_field->flags & HIST_FIELD_EXECNAME) {
+			unsigned int size = TASK_COMM_LEN + 1;
+
+			elt->private_data = kzalloc(size, GFP_KERNEL);
+			if (!elt->private_data)
+				return -ENOMEM;
+			break;
+		}
+	}
+
+	return 0;
+}
+
+static void hist_trigger_elt_copy(struct tracing_map_elt *to,
+				  struct tracing_map_elt *from)
+{
+	char *comm_from = from->private_data;
+	char *comm_to = to->private_data;
+
+	if (comm_from)
+		memcpy(comm_to, comm_from, TASK_COMM_LEN + 1);
+}
+
+static void hist_trigger_elt_init(struct tracing_map_elt *elt)
+{
+	char *comm = elt->private_data;
+
+	if (comm)
+		save_comm(comm, current);
+}
+
+static struct tracing_map_ops hist_trigger_ops = {
+	.elt_alloc	= hist_trigger_elt_alloc,
+	.elt_copy	= hist_trigger_elt_copy,
+	.elt_free	= hist_trigger_elt_free,
+	.elt_init	= hist_trigger_elt_init,
+};
 
 static void destroy_hist_field(struct hist_field *hist_field)
 {
@@ -376,6 +449,9 @@ static int create_key_field(struct hist_trigger_data *hist_data,
 			flags |= HIST_FIELD_SYM;
 		else if (!strcmp(field_str, "sym-offset"))
 			flags |= HIST_FIELD_SYM_OFFSET;
+		else if (!strcmp(field_str, "execname") &&
+			 !strcmp(field_name, "common_pid"))
+			flags |= HIST_FIELD_EXECNAME;
 		else {
 			ret = -EINVAL;
 			goto out;
@@ -612,7 +688,7 @@ create_hist_data(unsigned int map_bits,
 		goto free;
 
 	hist_data->map = tracing_map_create(map_bits, hist_data->key_size,
-					    NULL, hist_data);
+					    &hist_trigger_ops, hist_data);
 	if (IS_ERR(hist_data->map)) {
 		ret = PTR_ERR(hist_data->map);
 		hist_data->map = NULL;
@@ -732,6 +808,12 @@ hist_trigger_entry_print(struct seq_file *m,
 			sprint_symbol(str, uval);
 			seq_printf(m, "%s: [%llx] %-55s",
 				   key_field->field->name, uval, str);
+		} else if (key_field->flags & HIST_FIELD_EXECNAME) {
+			char *comm = elt->private_data;
+
+			uval = *(u64 *)(key + key_field->offset);
+			seq_printf(m, "%s: %-16s[%10llu]",
+				   key_field->field->name, comm, uval);
 		} else if (key_field->flags & HIST_FIELD_STRING) {
 			seq_printf(m, "%s: %-35s", key_field->field->name,
 				   (char *)(key + key_field->offset));
@@ -845,6 +927,8 @@ static const char *get_hist_field_flags(struct hist_field *hist_field)
 		flags_str = "sym";
 	else if (hist_field->flags & HIST_FIELD_SYM_OFFSET)
 		flags_str = "sym-offset";
+	else if (hist_field->flags & HIST_FIELD_EXECNAME)
+		flags_str = "execname";
 
 	return flags_str;
 }
