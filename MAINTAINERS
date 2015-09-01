@@ -10910,6 +10910,11 @@ T:	git git://git.kernel.org/pub/scm/linux/kernel/git/tip/tip.git x86/vdso
 S:	Maintained
 F:	arch/x86/vdso/
 
+X86 MICRO INTEGRATION
+M:	Tom Zanussi <tom.zanussi@linux.intel.com>
+L:	micro-linux-dev-request@eclists.intel.com
+S:	Maintained
+
 XC2028/3028 TUNER DRIVER
 M:	Mauro Carvalho Chehab <mchehab@osg.samsung.com>
 L:	linux-media@vger.kernel.org
