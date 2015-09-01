@@ -109,6 +109,7 @@ struct hist_trigger_attrs {
 	char		*keys_str;
 	char		*vals_str;
 	char		*sort_key_str;
+	char		*name;
 	bool		pause;
 	bool		cont;
 	bool		clear;
@@ -191,6 +192,7 @@ static int parse_map_size(char *str)
 
 static void destroy_hist_trigger_attrs(struct hist_trigger_attrs *attrs)
 {
+	kfree(attrs->name);
 	kfree(attrs->sort_key_str);
 	kfree(attrs->keys_str);
 	kfree(attrs->vals_str);
@@ -218,6 +220,8 @@ static struct hist_trigger_attrs *parse_hist_trigger_attrs(char *trigger_str)
 			attrs->vals_str = kstrdup(str, GFP_KERNEL);
 		else if (!strncmp(str, "sort", strlen("sort")))
 			attrs->sort_key_str = kstrdup(str, GFP_KERNEL);
+		else if (!strncmp(str, "name", strlen("name")))
+			attrs->name = kstrdup(str, GFP_KERNEL);
 		else if (!strncmp(str, "pause", strlen("pause")))
 			attrs->pause = true;
 		else if (!strncmp(str, "clear", strlen("clear")))
@@ -1087,7 +1091,12 @@ static int event_hist_trigger_print(struct seq_file *m,
 	struct hist_field *key_field;
 	unsigned int i;
 
-	seq_puts(m, "hist:keys=");
+	seq_puts(m, "hist:");
+
+	if (data->name)
+		seq_printf(m, "%s:", data->name);
+
+	seq_puts(m, "keys=");
 
 	for (i = hist_data->n_vals; i < hist_data->n_fields; i++) {
 		key_field = hist_data->fields[i];
@@ -1149,16 +1158,31 @@ static int event_hist_trigger_print(struct seq_file *m,
 	return 0;
 }
 
+static int event_hist_trigger_init(struct event_trigger_ops *ops,
+				   struct event_trigger_data *data)
+{
+	struct hist_trigger_data *hist_data = data->private_data;
+
+	if (!data->ref && hist_data->attrs->name)
+		save_named_trigger(hist_data->attrs->name, data);
+
+	data->ref++;
+
+	return 0;
+}
+
 static void event_hist_trigger_free(struct event_trigger_ops *ops,
 				    struct event_trigger_data *data)
 {
 	struct hist_trigger_data *hist_data = data->private_data;
 
-	if (WARN_ON_ONCE(data->ref <= 0))
-		return;
+        if (WARN_ON_ONCE(data->ref <= 0))
+                return;
 
-	data->ref--;
-	if (!data->ref) {
+        data->ref--;
+        if (!data->ref) {
+		if (data->name)
+			del_named_trigger(data);
 		trigger_data_free(data);
 		destroy_hist_data(hist_data);
 	}
@@ -1167,8 +1191,42 @@ static void event_hist_trigger_free(struct event_trigger_ops *ops,
 static struct event_trigger_ops event_hist_trigger_ops = {
 	.func			= event_hist_trigger,
 	.print			= event_hist_trigger_print,
-	.init			= event_trigger_init,
+	.init			= event_hist_trigger_init,
 	.free			= event_hist_trigger_free,
+};
+
+static int event_hist_trigger_named_init(struct event_trigger_ops *ops,
+					 struct event_trigger_data *data)
+{
+	data->ref++;
+
+	save_named_trigger(data->named_data->name, data);
+
+	event_hist_trigger_init(ops, data->named_data);
+
+	return 0;
+}
+
+static void event_hist_trigger_named_free(struct event_trigger_ops *ops,
+					  struct event_trigger_data *data)
+{
+	if (WARN_ON_ONCE(data->ref <= 0))
+		return;
+
+	event_hist_trigger_free(ops, data->named_data);
+
+	data->ref--;
+	if (!data->ref) {
+		del_named_trigger(data);
+		trigger_data_free(data);
+	}
+}
+
+static struct event_trigger_ops event_hist_trigger_named_ops = {
+	.func			= event_hist_trigger,
+	.print			= event_hist_trigger_print,
+	.init			= event_hist_trigger_named_init,
+	.free			= event_hist_trigger_named_free,
 };
 
 static struct event_trigger_ops *event_hist_get_trigger_ops(char *cmd,
@@ -1180,10 +1238,9 @@ static struct event_trigger_ops *event_hist_get_trigger_ops(char *cmd,
 static void hist_clear(struct event_trigger_data *data)
 {
 	struct hist_trigger_data *hist_data = data->private_data;
-	bool paused;
 
-	paused = data->paused;
-	data->paused = true;
+	if (data->name)
+		pause_named_trigger(data);
 
 	synchronize_sched();
 
@@ -1192,11 +1249,32 @@ static void hist_clear(struct event_trigger_data *data)
 	atomic64_set(&hist_data->total_hits, 0);
 	atomic64_set(&hist_data->drops, 0);
 
-	data->paused = paused;
+	if (data->name)
+		unpause_named_trigger(data);
+}
+
+static bool compatible_field(struct ftrace_event_field *field,
+			     struct ftrace_event_field *test_field)
+{
+	if (field == test_field)
+		return true;
+	if (field == NULL || test_field == NULL)
+		return false;
+	if (strcmp(field->name, test_field->name))
+		return false;
+	if (strcmp(field->type, test_field->type))
+		return false;
+	if (field->size != test_field->size)
+		return false;
+	if (field->is_signed != test_field->is_signed)
+		return false;
+
+	return true;
 }
 
 static bool hist_trigger_match(struct event_trigger_data *data,
-			       struct event_trigger_data *data_test)
+			       struct event_trigger_data *data_test,
+			       bool ignore_filter)
 {
 	struct tracing_map_sort_key *sort_key, *sort_key_test;
 	struct hist_trigger_data *hist_data, *hist_data_test;
@@ -1211,9 +1289,11 @@ static bool hist_trigger_match(struct event_trigger_data *data,
 	    hist_data->n_sort_keys != hist_data_test->n_sort_keys)
 		return false;
 
-	if ((data->filter_str && !data_test->filter_str) ||
-	    (!data->filter_str && data_test->filter_str))
-		return false;
+	if (!ignore_filter) {
+		if((data->filter_str && !data_test->filter_str) ||
+		   (!data->filter_str && data_test->filter_str))
+			return false;
+	}
 
 	for (i = 0; i < hist_data->n_fields; i++) {
 		key_field = hist_data->fields[i];
@@ -1221,7 +1301,7 @@ static bool hist_trigger_match(struct event_trigger_data *data,
 
 		if (key_field->flags != key_field_test->flags)
 			return false;
-		if (key_field->field != key_field_test->field)
+		if (!compatible_field(key_field->field, key_field_test->field))
 			return false;
 		if (key_field->offset != key_field_test->offset)
 			return false;
@@ -1236,9 +1316,11 @@ static bool hist_trigger_match(struct event_trigger_data *data,
 			return false;
 	}
 
-	if (data->filter_str &&
-	    strcmp(data->filter_str, data_test->filter_str))
-	    return false;
+	if (!ignore_filter) {
+		if (data->filter_str &&
+		    strcmp(data->filter_str, data_test->filter_str))
+			return false;
+	}
 
 	return true;
 }
@@ -1248,12 +1330,22 @@ static int hist_register_trigger(char *glob, struct event_trigger_ops *ops,
 				 struct trace_event_file *file)
 {
 	struct hist_trigger_data *hist_data = data->private_data;
-	struct event_trigger_data *test;
+	struct event_trigger_data *test, *named_data = NULL;
 	int ret = 0;
+
+	if (hist_data->attrs->name) {
+		named_data = find_named_trigger(hist_data->attrs->name);
+		if (named_data) {
+			if (!hist_trigger_match(data, named_data, true)) {
+				ret = -EINVAL;
+				goto out;
+			}
+		}
+	}
 
 	list_for_each_entry_rcu(test, &file->triggers, list) {
 		if (test->cmd_ops->trigger_type == ETT_EVENT_HIST) {
-			if (!hist_trigger_match(data, test))
+			if (!hist_trigger_match(data, test, false))
 				continue;
 			if (hist_data->attrs->pause)
 				test->paused = true;
@@ -1265,6 +1357,13 @@ static int hist_register_trigger(char *glob, struct event_trigger_ops *ops,
 				ret = -EEXIST;
 			goto out;
 		}
+	}
+
+	if (named_data) {
+		destroy_hist_data(data->private_data);
+		data->private_data = named_data->private_data;
+		set_named_trigger_data(data, named_data);
+		data->ops = &event_hist_trigger_named_ops;
 	}
 
 	if (hist_data->attrs->pause)
@@ -1280,6 +1379,7 @@ static int hist_register_trigger(char *glob, struct event_trigger_ops *ops,
 	ret++;
 
 	update_cond_flag(file);
+
 	if (trace_event_trigger_enable_disable(file, 1) < 0) {
 		list_del_rcu(&data->list);
 		update_cond_flag(file);
@@ -1298,7 +1398,7 @@ static void hist_unregister_trigger(char *glob, struct event_trigger_ops *ops,
 
 	list_for_each_entry_rcu(test, &file->triggers, list) {
 		if (test->cmd_ops->trigger_type == ETT_EVENT_HIST) {
-			if (!hist_trigger_match(data, test))
+			if (!hist_trigger_match(data, test, false))
 				continue;
 			unregistered = true;
 			list_del_rcu(&test->list);
