@@ -587,6 +587,7 @@ static int ethtool_copy_validate_indir(u32 *indir, void __user *useraddr,
 	return 0;
 }
 
+#ifdef CONFIG_RTNETLINK
 u8 netdev_rss_key[NETDEV_RSS_KEY_LEN];
 
 void netdev_rss_key_fill(void *buffer, size_t len)
@@ -596,6 +597,7 @@ void netdev_rss_key_fill(void *buffer, size_t len)
 	memcpy(buffer, netdev_rss_key, len);
 }
 EXPORT_SYMBOL(netdev_rss_key_fill);
+#endif
 
 static noinline_for_stack int ethtool_get_rxfh_indir(struct net_device *dev,
 						     void __user *useraddr)

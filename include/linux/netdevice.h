@@ -3550,9 +3550,12 @@ void *netdev_lower_dev_get_private(struct net_device *dev,
 
 /* RSS keys are 40 or 52 bytes long */
 #define NETDEV_RSS_KEY_LEN 52
+#ifdef CONFIG_RTNETLINK
 extern u8 netdev_rss_key[NETDEV_RSS_KEY_LEN];
 void netdev_rss_key_fill(void *buffer, size_t len);
-
+#else
+static inline void netdev_rss_key_fill(void *buffer, size_t len) {}
+#endif
 int dev_get_nest_level(struct net_device *dev,
 		       bool (*type_check)(struct net_device *dev));
 int skb_checksum_help(struct sk_buff *skb);
