@@ -100,7 +100,7 @@ void ping_proc_unregister(struct net *net, struct ping_seq_afinfo *afinfo);
 #endif
 
 #ifdef CONFIG_IP_PING
-void ping_rcv(struct sk_buff *skb);
+bool ping_rcv(struct sk_buff *skb);
 void ping_err(struct sk_buff *skb, int offset, u32 info);
 void __init ping_init(void);
 int  __init pingv6_init(void);
@@ -110,7 +110,7 @@ static inline void ping_init(void) {}
 static inline int pingv6_init(void) { return 0; }
 static inline void pingv6_exit(void) { }
 static inline void ping_err(struct sk_buff *skb, int offset, u32 info) {}
-static inline void ping_rcv(struct sk_buff *skb) {}
+static inline bool ping_rcv(struct sk_buff *skb) { return false; }
 #endif
 
 
