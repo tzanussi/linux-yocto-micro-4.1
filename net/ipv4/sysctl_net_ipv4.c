@@ -429,6 +429,7 @@ static struct ctl_table ipv4_table[] = {
 		.mode		= 0644,
 		.proc_handler	= proc_dointvec
 	},
+#ifdef CONFIG_IP_MULTICAST
 	{
 		.procname	= "igmp_max_memberships",
 		.data		= &sysctl_igmp_max_memberships,
@@ -436,7 +437,6 @@ static struct ctl_table ipv4_table[] = {
 		.mode		= 0644,
 		.proc_handler	= proc_dointvec
 	},
-#ifdef CONFIG_IP_MULTICAST
 	{
 		.procname	= "igmp_max_msf",
 		.data		= &sysctl_igmp_max_msf,
