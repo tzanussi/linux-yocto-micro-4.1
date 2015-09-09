@@ -89,7 +89,7 @@ struct entry_info {
 	struct hlist_node hlist;
 	int plen;
 	u32 mask_plen; /* ntohl(inet_make_mask(plen)) */
-	struct list_head falh;
+	struct hlist_head falh;
 	struct rcu_head rcu;
 };
 
@@ -143,7 +143,7 @@ static struct entry_info *entry_info_new(int plen)
 	if (ei) {
 		ei->plen = plen;
 		ei->mask_plen = ntohl(inet_make_mask(plen));
-		INIT_LIST_HEAD(&ei->falh);
+		INIT_HLIST_HEAD(&ei->falh);
 	}
 	return ei;
 }
@@ -163,7 +163,7 @@ static struct entry_info *find_entry_info(struct entry *e, int plen)
 	return NULL;
 }
 
-static inline struct list_head *get_fa_head(struct entry *l, int plen)
+static inline struct hlist_head *get_fa_head(struct entry *l, int plen)
 {
 	struct entry_info *li = find_entry_info(l, plen);
 
@@ -213,7 +213,7 @@ static struct list_head *fib_insert_node(struct rlist *rl, u32 key, int plen)
 	struct entry *entry;
 	struct entry_info *ei;
 	struct hlist_node *prev = NULL;
-	struct list_head *fa_head;
+	struct hlist_head *fa_head;
 
 	hlist_for_each_entry (entry, &rl->list, nd) {
 		if (entry->plen < plen)
@@ -424,7 +424,7 @@ static int check_entry(struct fib_table *tb, struct entry *l,
 	hlist_for_each_entry_rcu(li, hhead, hlist) {
 		struct fib_alias *fa;
 
-		list_for_each_entry_rcu(fa, &li->falh, fa_list) {
+		hlist_for_each_entry_rcu(fa, &li->falh, fa_list) {
 			struct fib_info *fi = fa->fa_info;
 			int nhsel, err;
 
@@ -503,7 +503,7 @@ int fib_table_delete(struct fib_table *tb, struct fib_config *cfg)
 	int plen = cfg->fc_dst_len;
 	u8 tos = cfg->fc_tos;
 	struct fib_alias *fa, *fa_to_delete;
-	struct list_head *fa_head;
+	struct hlist_head *fa_head;
 	struct entry *l;
 	struct entry_info *li;
 
@@ -583,16 +583,16 @@ int fib_table_delete(struct fib_table *tb, struct fib_config *cfg)
 	return 0;
 }
 
-static int flush_list(struct list_head *head)
+static int flush_list(struct hlist_head *head)
 {
 	struct fib_alias *fa, *fa_node;
 	int found = 0;
 
-	list_for_each_entry_safe(fa, fa_node, head, fa_list) {
+	hlist_for_each_entry_safe(fa, fa_node, head, fa_list) {
 		struct fib_info *fi = fa->fa_info;
 
 		if (fi && (fi->fib_flags & RTNH_F_DEAD)) {
-			list_del_rcu(&fa->fa_list);
+			hlist_del_rcu(&fa->fa_list);
 			fib_release_info(fa->fa_info);
 			alias_free_mem_rcu(fa);
 			found++;
@@ -611,7 +611,7 @@ static int flush_entry(struct entry *e)
 	hlist_for_each_entry_safe(li, tmp, lih, hlist) {
 		found += flush_list(&li->falh);
 
-		if (list_empty(&li->falh)) {
+		if (hlist_empty(&li->falh)) {
 			hlist_del_rcu(&li->hlist);
 			free_entry_info(li);
 		}
@@ -669,7 +669,7 @@ void fib_free_table(struct fib_table *tb)
 	kfree(tb);
 }
 
-static int fn_list_dump_fa(u32 key, int plen, struct list_head *fah,
+static int fn_list_dump_fa(u32 key, int plen, struct hlist_head *fah,
 			   struct fib_table *tb,
 			   struct sk_buff *skb, struct netlink_callback *cb)
 {
@@ -682,7 +682,7 @@ static int fn_list_dump_fa(u32 key, int plen, struct list_head *fah,
 
 	/* rcu_read_lock is hold by caller */
 
-	list_for_each_entry_rcu(fa, fah, fa_list) {
+	hlist_for_each_entry_rcu(fa, fah, fa_list) {
 		if (i < s_i) {
 			i++;
 			continue;
@@ -725,7 +725,7 @@ static int fn_dump_entry(struct entry *l, struct fib_table *tb,
 		if (i > s_i)
 			cb->args[5] = 0;
 
-		if (list_empty(&li->falh))
+		if (hlist_empty(&li->falh))
 			continue;
 
 		if (fn_list_dump_fa(l->key, li->plen, &li->falh, tb, skb, cb) < 0) {
@@ -912,7 +912,7 @@ static int fib_route_seq_show(struct seq_file *seq, void *v)
 		mask = inet_make_mask(ei->plen);
 		prefix = htonl(entry->key);
 
-		list_for_each_entry_rcu(fa, &ei->falh, fa_list) {
+		hlist_for_each_entry_rcu(fa, &ei->falh, fa_list) {
 			const struct fib_info *fi = fa->fa_info;
 			unsigned int flags = fib_flag_trans(fa->fa_type, mask, fi);
 
