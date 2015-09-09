@@ -146,6 +146,9 @@ struct trie {
 #endif
 };
 
+extern struct fib_alias *fib_find_alias(struct hlist_head *fah, u8 slen,
+					u8 tos, u32 prio, u32 tb_id);
+
 static struct key_vector *resize(struct trie *t, struct key_vector *tn);
 static size_t tnode_free_size;
 
