@@ -77,6 +77,15 @@ extern int poke_int3_handler(struct pt_regs *regs);
 	resolve1(old, new1)
 #endif
 
+#ifdef CONFIG_XIP_ENABLE_X86_FEATURE_3DNOWPREFETCH
+#define RESOLVE_X86_FEATURE_3DNOWPREFETCH(old, new) new
+#define RESOLVE_2_X86_FEATURE_3DNOWPREFETCH(old, new1, resolve1, new2) new2
+#else
+#define RESOLVE_X86_FEATURE_3DNOWPREFETCH(old, new) old
+#define RESOLVE_2_X86_FEATURE_3DNOWPREFETCH(old, new1, resolve1, new2) \
+	resolve1(old, new1)
+#endif
+
 #ifdef CONFIG_XIP_ENABLE_X86_FEATURE_XMM
 #define RESOLVE_X86_FEATURE_XMM(old, new) new
 #define RESOLVE_2_X86_FEATURE_XMM(old, new1, resolve1, new2) new2
@@ -100,7 +109,7 @@ extern int poke_int3_handler(struct pt_regs *regs);
 #define RESOLVE_2_X86_FEATURE_XSAVEOPT(old, new1, resolve1, new2) new2
 #else
 #define RESOLVE_X86_FEATURE_XSAVEOPT(old, new) old
-#define RESOLVE_2_X86_FEATURE_XSAVEOPT(old, new1, resovle1, new2) \
+#define RESOLVE_2_X86_FEATURE_XSAVEOPT(old, new1, resolve1, new2) \
 	resolve1(old, new1)
 #endif
 
@@ -110,6 +119,24 @@ extern int poke_int3_handler(struct pt_regs *regs);
 #else
 #define RESOLVE_X86_FEATURE_XSAVES(old, new) old
 #define RESOLVE_2_X86_FEATURE_XSAVES(old, new1, resolve1, new2) \
+	resolve1(old, new1)
+#endif
+
+#ifdef CONFIG_XIP_ENABLE_X86_FEATURE_CLWB
+#define RESOLVE_X86_FEATURE_CLWB(old, new) new
+#define RESOLVE_2_X86_FEATURE_CLWB(old, new1, resolve1, new2) new2
+#else
+#define RESOLVE_X86_FEATURE_CLWB(old, new) old
+#define RESOLVE_2_X86_FEATURE_CLWB(old, new1, resolve1, new2) \
+	resolve1(old, new1)
+#endif
+
+#ifdef CONFIG_XIP_ENABLE_X86_FEATURE_PCOMMIT
+#define RESOLVE_X86_FEATURE_PCOMMIT(old, new) new
+#define RESOLVE_2_X86_FEATURE_PCOMMIT(old, new1, resolve1, new2) new2
+#else
+#define RESOLVE_X86_FEATURE_PCOMMIT(old, new) old
+#define RESOLVE_2_X86_FEATURE_PCOMMIT(old, new1, resolve1, new2) \
 	resolve1(old, new1)
 #endif
 
@@ -126,11 +153,16 @@ extern int poke_int3_handler(struct pt_regs *regs);
 	RESOLVE_##feature(oldinstr, newinstr)
 
 #define ALTERNATIVE_2(oldinstr, newinstr1, feature1, newinstr2, feature2) \
-	RESOLVE_2_##feature2(oldinstr, newinstr1, feature1, newinstr2)
+	RESOLVE_2_##feature2(oldinstr, newinstr1, RESOLVE_##feature1, newinstr2)
 
 #define alternative(oldinstr, newinstr, feature) \
 	asm volatile(__ALTERNATIVE(oldinstr, newinstr, RESOLVE_##feature) \
 		: : : "memory")
+
+#define alternative_2(oldinstr, newinstr1, feature1, newinstr2, feature2) \
+	asm volatile(__ALTERNATIVE_2(oldinstr, newinstr1, RESOLVE_##feature1, \
+			     newinstr2, RESOLVE_2_##feature2) \
+		     : : : "memory")
 
 #define alternative_input(oldinstr, newinstr, feature, input...) \
 	asm volatile(__ALTERNATIVE(oldinstr, newinstr, RESOLVE_##feature) \

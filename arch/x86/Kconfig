@@ -362,6 +362,10 @@ menu "XIP Alternative Instructions"
 	bool "Enable XSAVES alternative instructions"
 	default n
 
+	config XIP_ENABLE_X86_FEATURE_CLWB
+	bool "Enable CLWB alternative instructions"
+	default n
+
 endmenu
 
 config SMP
