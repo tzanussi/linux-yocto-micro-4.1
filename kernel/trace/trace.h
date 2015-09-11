@@ -1146,7 +1146,7 @@ struct event_trigger_data {
 #define DISABLE_HIST_STR	"disable_hist"
 
 struct enable_trigger_data {
-	struct trace_event_file		*file;
+	struct ftrace_event_file	*file;
 	bool				enable;
 	bool				hist;
 };
@@ -1157,28 +1157,28 @@ extern int event_enable_trigger_print(struct seq_file *m,
 extern void event_enable_trigger_free(struct event_trigger_ops *ops,
 				      struct event_trigger_data *data);
 extern int event_enable_trigger_func(struct event_command *cmd_ops,
-				     struct trace_event_file *file,
+				     struct ftrace_event_file *file,
 				     char *glob, char *cmd, char *param);
 extern int event_enable_register_trigger(char *glob,
 					 struct event_trigger_ops *ops,
 					 struct event_trigger_data *data,
-					 struct trace_event_file *file);
+					 struct ftrace_event_file *file);
 extern void event_enable_unregister_trigger(char *glob,
 					    struct event_trigger_ops *ops,
 					    struct event_trigger_data *test,
-					    struct trace_event_file *file);
+					    struct ftrace_event_file *file);
 extern void trigger_data_free(struct event_trigger_data *data);
 extern int event_trigger_init(struct event_trigger_ops *ops,
 			      struct event_trigger_data *data);
-extern int trace_event_trigger_enable_disable(struct trace_event_file *file,
+extern int trace_event_trigger_enable_disable(struct ftrace_event_file *file,
 					      int trigger_enable);
-extern void update_cond_flag(struct trace_event_file *file);
+extern void update_cond_flag(struct ftrace_event_file *file);
 extern void unregister_trigger(char *glob, struct event_trigger_ops *ops,
 			       struct event_trigger_data *test,
-			       struct trace_event_file *file);
+			       struct ftrace_event_file *file);
 extern int set_trigger_filter(char *filter_str,
 			      struct event_trigger_data *trigger_data,
-			      struct trace_event_file *file);
+			      struct ftrace_event_file *file);
 extern struct event_trigger_data *find_named_trigger(const char *name);
 extern int save_named_trigger(const char *name,
 			      struct event_trigger_data *data);

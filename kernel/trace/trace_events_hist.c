@@ -125,7 +125,7 @@ struct hist_trigger_data {
 	unsigned int			key_size;
 	struct tracing_map_sort_key	sort_keys[TRACING_MAP_SORT_KEYS_MAX];
 	unsigned int			n_sort_keys;
-	struct trace_event_file		*event_file;
+	struct ftrace_event_file	*event_file;
 	atomic64_t			drops;
 	struct hist_trigger_attrs	*attrs;
 	struct tracing_map		*map;
@@ -397,7 +397,7 @@ static int create_hitcount_val(struct hist_trigger_data *hist_data)
 
 static int create_val_field(struct hist_trigger_data *hist_data,
 			    unsigned int val_idx,
-			    struct trace_event_file *file,
+			    struct ftrace_event_file *file,
 			    char *field_str)
 {
 	struct ftrace_event_field *field = NULL;
@@ -432,7 +432,7 @@ static int create_val_field(struct hist_trigger_data *hist_data,
 }
 
 static int create_val_fields(struct hist_trigger_data *hist_data,
-			     struct trace_event_file *file)
+			     struct ftrace_event_file *file)
 {
 	unsigned int vals_max = TRACING_MAP_FIELDS_MAX - TRACING_MAP_KEYS_MAX;
 	char *fields_str, *field_str;
@@ -472,7 +472,7 @@ static int create_val_fields(struct hist_trigger_data *hist_data,
 static int create_key_field(struct hist_trigger_data *hist_data,
 			    unsigned int key_idx,
 			    unsigned int key_offset,
-			    struct trace_event_file *file,
+			    struct ftrace_event_file *file,
 			    char *field_str)
 {
 	struct ftrace_event_field *field = NULL;
@@ -540,7 +540,7 @@ static int create_key_field(struct hist_trigger_data *hist_data,
 }
 
 static int create_key_fields(struct hist_trigger_data *hist_data,
-			     struct trace_event_file *file)
+			     struct ftrace_event_file *file)
 {
 	unsigned int i, key_offset = 0, n_vals = hist_data->n_vals;
 	char *fields_str, *field_str;
@@ -574,7 +574,7 @@ static int create_key_fields(struct hist_trigger_data *hist_data,
 }
 
 static int create_hist_fields(struct hist_trigger_data *hist_data,
-			      struct trace_event_file *file)
+			      struct ftrace_event_file *file)
 {
 	int ret;
 
@@ -722,7 +722,7 @@ static int create_tracing_map_fields(struct hist_trigger_data *hist_data)
 static struct hist_trigger_data *
 create_hist_data(unsigned int map_bits,
 		 struct hist_trigger_attrs *attrs,
-		 struct trace_event_file *file)
+		 struct ftrace_event_file *file)
 {
 	struct hist_trigger_data *hist_data;
 	int ret = 0;
@@ -1020,7 +1020,7 @@ static void hist_trigger_show(struct seq_file *m,
 static int hist_show(struct seq_file *m, void *v)
 {
 	struct event_trigger_data *data;
-	struct trace_event_file *event_file;
+	struct ftrace_event_file *event_file;
 	int n = 0, ret = 0;
 
 	mutex_lock(&event_mutex);
@@ -1327,7 +1327,7 @@ static bool hist_trigger_match(struct event_trigger_data *data,
 
 static int hist_register_trigger(char *glob, struct event_trigger_ops *ops,
 				 struct event_trigger_data *data,
-				 struct trace_event_file *file)
+				 struct ftrace_event_file *file)
 {
 	struct hist_trigger_data *hist_data = data->private_data;
 	struct event_trigger_data *test, *named_data = NULL;
@@ -1391,7 +1391,7 @@ static int hist_register_trigger(char *glob, struct event_trigger_ops *ops,
 
 static void hist_unregister_trigger(char *glob, struct event_trigger_ops *ops,
 				    struct event_trigger_data *data,
-				    struct trace_event_file *file)
+				    struct ftrace_event_file *file)
 {
 	struct event_trigger_data *test;
 	bool unregistered = false;
@@ -1413,7 +1413,7 @@ static void hist_unregister_trigger(char *glob, struct event_trigger_ops *ops,
 }
 
 static int event_hist_trigger_func(struct event_command *cmd_ops,
-				   struct trace_event_file *file,
+				   struct ftrace_event_file *file,
 				   char *glob, char *cmd, char *param)
 {
 	unsigned int hist_trigger_bits = TRACING_MAP_BITS_DEFAULT;
