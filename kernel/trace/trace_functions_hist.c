@@ -281,9 +281,9 @@ static int hist_show(struct seq_file *m, void *v)
 		n_entries = 0;
 	}
 
-	seq_printf(m, "\nTotals:\n    Hits: %lu\n    Entries: %u\n    Dropped: %lu\n",
-		   atomic64_read(&function_hist_data->total_hits),
-		   n_entries, atomic64_read(&function_hist_data->drops));
+	seq_printf(m, "\nTotals:\n    Hits: %llu\n    Entries: %u\n    Dropped: %llu\n",
+		   (u64)atomic64_read(&function_hist_data->total_hits),
+		   n_entries, (u64)atomic64_read(&function_hist_data->drops));
  out_unlock:
 	mutex_unlock(&trace_types_lock);
 
