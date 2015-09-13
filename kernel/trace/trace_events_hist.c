@@ -49,7 +49,7 @@ static u64 hist_field_string(struct hist_field *hist_field, void *event)
 {
 	char *addr = (char *)(event + hist_field->field->offset);
 
-	return (u64)addr;
+	return (u64)(unsigned long)addr;
 }
 
 static u64 hist_field_dynstring(struct hist_field *hist_field, void *event)
@@ -58,14 +58,14 @@ static u64 hist_field_dynstring(struct hist_field *hist_field, void *event)
 	int str_loc = str_item & 0xffff;
 	char *addr = (char *)(event + str_loc);
 
-	return (u64)addr;
+	return (u64)(unsigned long)addr;
 }
 
 static u64 hist_field_pstring(struct hist_field *hist_field, void *event)
 {
 	char **addr = (char **)(event + hist_field->field->offset);
 
-	return (u64)*addr;
+	return (u64)(unsigned long)*addr;
 }
 
 #define DEFINE_HIST_FIELD_FN(type)					\
@@ -847,7 +847,7 @@ static void event_hist_trigger(struct event_trigger_data *data, void *rec)
 		} else {
 			field_contents = key_field->fn(key_field, rec);
 			if (key_field->flags & HIST_FIELD_STRING) {
-				key = (void *)field_contents;
+				key = (void *)(unsigned long)field_contents;
 				use_compound_key = true;
 			} else
 				key = (void *)&field_contents;
