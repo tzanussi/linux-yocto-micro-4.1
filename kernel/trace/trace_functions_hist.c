@@ -224,18 +224,18 @@ static void function_hist_entry_print(struct seq_file *m,
 				      void *key, struct tracing_map_elt *elt)
 {
 	char str[KSYM_SYMBOL_LEN];
-	u64 uval;
+	unsigned long uval;
 
 	if (hist_data->key_flags & HIST_FIELD_SYM) {
-		uval = *(u64 *)key;
+		uval = *(unsigned long *)key;
 		kallsyms_lookup(uval, NULL, NULL, NULL, str);
-		seq_printf(m, "ip: [%llx] %-35s", uval, str);
+		seq_printf(m, "ip: [%lx] %-35s", uval, str);
 	} else if (hist_data->key_flags & HIST_FIELD_HEX) {
-		uval = *(u64 *)key;
-		seq_printf(m, "ip: %llx", uval);
+		uval = *(unsigned long *)key;
+		seq_printf(m, "ip: %lx", uval);
 	} else {
-		uval = *(u64 *)key;
-		seq_printf(m, "ip: %10llu", uval);
+		uval = *(unsigned long *)key;
+		seq_printf(m, "ip: %10lu", uval);
 	}
 
 	seq_printf(m, " hitcount: %10llu",
